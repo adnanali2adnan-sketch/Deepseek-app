@@ -10,43 +10,45 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Extract ZIP if present
         run: |
-          # Agar koi .zip file hai to extract karo
           for zipfile in *.zip; do
-            if [ -f "$zipfile" ]; then
-              echo "Extracting $zipfile"
-              unzip -o "$zipfile"
-              rm "$zipfile"
-            fi
+            [ -f "$zipfile" ] && unzip -o "$zipfile" && rm "$zipfile"
           done
-          # Agar RangoHUD_Project folder hai to uske andar chale jao
           if [ -d "RangoHUD_Project" ]; then
-            mv RangoHUD_Project/* ./
-            rm -rf RangoHUD_Project
+            mv RangoHUD_Project/* ./ && rm -rf RangoHUD_Project
           fi
           ls -la
-      
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-      
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-      
-      - name: Setup Gradle
+
+      - name: Setup Gradle 8.5
         run: |
           wget https://services.gradle.org/distributions/gradle-8.5-bin.zip
           unzip gradle-8.5-bin.zip
           sudo mv gradle-8.5 /opt/gradle
           echo "export PATH=/opt/gradle/bin:$PATH" >> $GITHUB_ENV
-      
-      - name: Build APK
-        run: gradle assembleDebug --no-daemon
-      
+
+      - name: Create Gradle wrapper (optional but safe)
+        run: |
+          # Make sure settings.gradle.kts exists
+          if [ ! -f "settings.gradle.kts" ]; then
+            echo 'include(":app")' > settings.gradle.kts
+          fi
+          # Create wrapper using gradle
+          gradle wrapper --gradle-version 8.5
+
+      - name: Build APK with wrapper
+        run: ./gradlew assembleDebug --no-daemon
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
