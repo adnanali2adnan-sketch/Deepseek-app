@@ -1,56 +1,53 @@
-name: Build APK
+name: Build Dragon Tiger APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
-  build:
+  build-apk:
+    name: Build Android APK
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Extract ZIP if present
+      - name: Extract project zip
         run: |
-          for zipfile in *.zip; do
-            [ -f "$zipfile" ] && unzip -o "$zipfile" && rm "$zipfile"
-          done
-          if [ -d "RangoHUD_Project" ]; then
-            mv RangoHUD_Project/* ./ && rm -rf RangoHUD_Project
+          if ls *.zip 1>/dev/null 2>&1; then
+            unzip -o *.zip
+            FOLDER=$(unzip -Z -1 *.zip | head -1 | cut -d/ -f1)
+            echo "PROJ_DIR=$FOLDER" >> $GITHUB_ENV
+          else
+            echo "PROJ_DIR=." >> $GITHUB_ENV
           fi
-          ls -la
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
+          node-version: '20'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Install EAS CLI
+        run: npm install -g eas-cli@latest
 
-      - name: Setup Gradle 8.5
-        run: |
-          wget https://services.gradle.org/distributions/gradle-8.5-bin.zip
-          unzip gradle-8.5-bin.zip
-          sudo mv gradle-8.5 /opt/gradle
-          echo "export PATH=/opt/gradle/bin:$PATH" >> $GITHUB_ENV
+      - name: Install dependencies
+        working-directory: ${{ env.PROJ_DIR }}
+        run: npm install
 
-      - name: Create Gradle wrapper (optional but safe)
-        run: |
-          # Make sure settings.gradle.kts exists
-          if [ ! -f "settings.gradle.kts" ]; then
-            echo 'include(":app")' > settings.gradle.kts
-          fi
-          # Create wrapper using gradle
-          gradle wrapper --gradle-version 8.5
-
-      - name: Build APK with wrapper
-        run: ./gradlew assembleDebug --no-daemon
+      - name: Build APK
+        working-directory: ${{ env.PROJ_DIR }}
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas build --platform android --profile production --non-interactive
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: RangoHUD-debug
-          path: app/build/outputs/apk/debug/*.apk
+          name: dragon-tiger-apk
+          path: |
+            ${{ env.PROJ_DIR }}/*.apk
+          if-no-files-found: warn
+          retention-days: 30
